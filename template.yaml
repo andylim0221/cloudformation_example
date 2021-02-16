@@ -1,0 +1,266 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: >
+  Tag-based solution for scheduling EC2 instance termination
+Parameters:
+  EmailToSend:
+    Type: String
+    Description: Email to send for notification
+    AllowedPattern: "^(.+)@(.+)$"
+
+Resources:
+  CloudWatchEventRule:
+    Type: AWS::Events::Rule
+    Properties:
+      Description: Capture tag changes event on EC2 instances
+      Name: !Sub ${AWS::StackName}_CloudWatch_EventPattern
+      State: ENABLED
+      Targets: 
+        - Arn: !GetAtt LambdaDynamoDBFunction.Arn
+          Id: !Sub ${AWS::StackName}_CloudWatch_EventTarget
+      EventPattern:
+        source:
+          - aws.tag
+        detail-type:
+          - Tag Change on Resource
+        detail:
+          changed-tag-keys:
+            - AutoTerminationDate
+          service:
+            - ec2
+          resource-type:
+            - instance
+  
+  CloudWatchPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref LambdaDynamoDBFunction
+      Principal: events.amazonaws.com
+      SourceArn: !GetAtt CloudWatchEventRule.Arn
+  
+  LambdaDynamoDBExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - lambda.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      Path: "/"
+      Policies:
+        - PolicyName: rootPolicy
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action:
+                  - logs:*
+                  - logs:CreateLogGroup
+                  - logs:CreateLogStream
+                  - logs:PutEvents
+                Resource: "arn:aws:logs:*:*:*"
+        - PolicyName: DynamoDBReadWritePolicy
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement: 
+              - Effect: Allow
+                Action:
+                  - dynamodb:Query
+                  - dynamodb:GetItem
+                  - dynamodb:PutItem
+                  - dynamodb:UpdateItem
+                Resource: !GetAtt DynamoDBTable.Arn
+        - PolicyName: EC2ReadOnlyPolicy
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement: 
+              - Effect: Allow
+                Action: "ec2:Describe*"
+                Resource: "*" 
+        - PolicyName: SNSPublishPolicy
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow 
+                Action: 
+                  - sns:Publish 
+                Resource:
+                  - !Ref SNSTopic
+
+  LambdaDynamoDBFunction:
+    DependsOn: DynamoDBTable 
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub ${AWS::StackName}_LambdaDynamoDB_Function
+      Description: Triggered by CloudWatch event to write into DynamoDB
+      Handler: lambda_dynamodb.handler
+      Runtime: python3.6
+      Timeout: 30
+      Role: !GetAtt LambdaDynamoDBExecutionRole.Arn
+      Code: ./functions/
+      Environment:
+        Variables:
+          TABLE_NAME: !Ref DynamoDBTable
+  
+  LambdaDynamoDBFunctionVersion:
+    Type: AWS::Lambda::Version 
+    Properties: 
+      FunctionName: !Ref LambdaDynamoDBFunction
+
+  LambdaDynamoDBFunctionEventConfig:
+    Type: AWS::Lambda::EventInvokeConfig
+    Properties:
+      DestinationConfig:
+        OnFailure:
+          Destination: !Ref SNSTopic 
+      FunctionName: !Ref LambdaDynamoDBFunction
+      MaximumRetryAttempts: 2
+      MaximumEventAgeInSeconds: 60
+      Qualifier: !GetAtt LambdaDynamoDBFunctionVersion.Version
+
+  DynamoDBTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub ${AWS::StackName}_DynamoDB
+      AttributeDefinitions:
+        - AttributeName: InstanceId
+          AttributeType: S
+      KeySchema:
+        - AttributeName: InstanceId
+          KeyType: HASH
+      BillingMode: PROVISIONED
+      ProvisionedThroughput:
+        ReadCapacityUnits: 5
+        WriteCapacityUnits: 5
+      TimeToLiveSpecification:
+        AttributeName: AutoTerminationDate
+        Enabled: true
+      StreamSpecification:
+        StreamViewType: NEW_AND_OLD_IMAGES
+  
+  DynamoDBStreamLambdaExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - lambda.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      Path: "/"
+      Policies:
+        - PolicyName: rootPolicy
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action:
+                  - logs:*
+                  - logs:CreateLogGroup
+                  - logs:CreateLogStream
+                  - logs:PutEvents
+                Resource: "arn:aws:logs:*:*:*"
+        - PolicyName: EC2ReadOnlyPolicy
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement: 
+              - Effect: Allow
+                Action: "ec2:Describe*"
+                Resource: "*"
+        - PolicyName: EC2TerminatePolicy
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action:
+                  - ec2:DescribeInstances
+                  - ec2:TerminateInstances
+                Resource: !Sub "arn:aws:ec2:*:${AWS::AccountId}:instance/*"
+        - PolicyName: SNSNotificationPolicy
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action:
+                  - sns:Publish
+                Resource:
+                  - !Ref SNSTopic
+        - PolicyName: DynamoDBStreamReadPolicy
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action:
+                  - dynamodb:DescribeStream
+                  - dynamodb:GetRecords
+                  - dynamodb:GetShardIterator
+                  - dynamodb:ListStreams 
+                Resource: !GetAtt DynamoDBTable.StreamArn
+
+  DynamoDBStreamLambdaEventMapping:
+    Type: AWS::Lambda::EventSourceMapping
+    Properties:
+      EventSourceArn: !GetAtt DynamoDBTable.StreamArn
+      FunctionName: !GetAtt DynamoDBStreamLambdaFunction.Arn
+      Enabled: true
+      StartingPosition: TRIM_HORIZON
+
+  DynamoDBStreamLambdaFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub ${AWS::StackName}_DynamoDBStreamLambda_Function
+      Handler: dynamodbstream_lambda.handler
+      Environment:
+        Variables:
+          SNS_TOPIC_ARN: !Ref SNSTopic
+      Runtime: python3.6
+      Role: !GetAtt DynamoDBStreamLambdaExecutionRole.Arn
+      Timeout: 30
+      Code: ./functions/
+  
+  DynamoDBStreamLambdaFunctionVersion:
+    Type: AWS::Lambda::Version 
+    Properties: 
+      FunctionName: !Ref DynamoDBStreamLambdaFunction
+
+  DynamoDBStreamLambdaFunctionEventConfig:
+    Type: AWS::Lambda::EventInvokeConfig
+    Properties:
+      DestinationConfig:
+        OnSuccess:
+          Destination: !Ref SNSTopic
+        OnFailure:
+          Destination: !Ref SNSTopic 
+      FunctionName: !Ref DynamoDBStreamLambdaFunction
+      MaximumRetryAttempts: 2
+      MaximumEventAgeInSeconds: 60
+      Qualifier: !GetAtt DynamoDBStreamLambdaFunctionVersion.Version
+    
+  SNSTopic:
+    Type: AWS::SNS::Topic
+    Properties:
+      TopicName: !Sub ${AWS::StackName}_SNSTopic
+      Subscription:
+        - Endpoint: !Ref EmailToSend
+          Protocol: email
+
+Outputs:
+  DynamoDBStreamLambdaFunctionArn:
+    Description: ARN of the lamdba function which is triggered by DynamoDB Stream
+    Value: !GetAtt DynamoDBStreamLambdaFunction.Arn
+  DynamoDBTableArn:
+    Description: ARN of the DynamoDB table
+    Value: !GetAtt DynamoDBTable.Arn
+  LambdaDynamoDBFunctionArn:
+    Description: ARN of the lambda function which is triggered by EventBridge Rule
+    Value: !GetAtt LambdaDynamoDBFunction.Arn
+  SNSTopicArn:
+    Description: ARN of SNS topic
+    Value: !Ref SNSTopic
