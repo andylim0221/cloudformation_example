@@ -1,0 +1,177 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: "To automatically tag new resources when they are created\n"
+Parameters:
+  TrailName:
+    Type: String
+    AllowedPattern: '[a-z][a-z0-9-]*[a-z0-9]*'
+    Default: my-trail
+    Description: Name of CloudTrail trail
+Resources:
+  S3Bucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName:
+        Fn::Sub: auto-tag-cloudtrail-log-${AWS::Region}-${AWS::AccountId}
+      AccessControl: Private
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+        - ServerSideEncryptionByDefault:
+            SSEAlgorithm: AES256
+  S3BucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket:
+        Ref: S3Bucket
+      PolicyDocument:
+        Version: 2012-10-17
+        Statement:
+        - Sid: AWSCloudTrailACLCheck
+          Effect: Allow
+          Principal:
+            Service: cloudtrail.amazonaws.com
+          Action: s3:GetBucketAcl
+          Resource:
+          - Fn::Sub: arn:aws:s3:::${S3Bucket}
+        - Sid: AWSCloudTrailWrite
+          Effect: Allow
+          Principal:
+            Service: cloudtrail.amazonaws.com
+          Action: s3:PutObject
+          Resource:
+          - Fn::Sub: arn:aws:s3:::${S3Bucket}/AWSLogs/${AWS::AccountId}/*
+          Condition:
+            StringEquals:
+              s3:x-amz-acl: bucket-owner-full-control
+  CloudTrail:
+    DependsOn:
+    - S3BucketPolicy
+    Type: AWS::CloudTrail::Trail
+    Properties:
+      S3BucketName:
+        Ref: S3Bucket
+      IncludeGlobalServiceEvents: true
+      IsLogging: true
+      TrailName:
+        Ref: TrailName
+  CloudTrailLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      RetentionInDays: 365
+  CloudTrailLogsRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+        - Effect: Allow
+          Principal:
+            Service:
+            - cloudtrail.amazonaws.com
+          Action: sts:AssumeRole
+      Policies:
+      - PolicyName: root
+        PolicyDocument:
+          Version: 2012-10-17
+          Statement:
+          - Sid: AWSCloudTrailCreateLogStream
+            Effect: Allow
+            Action:
+            - logs:CreateLogStream
+            Resource:
+            - Fn::GetAtt:
+              - CloudTrail
+              - Arn
+          - Sid: AWSCloudTrailPutLogEvents
+            Effect: Allow
+            Action:
+            - logs:PutLogEvents
+            Resource:
+            - Fn::GetAtt:
+              - CloudTrail
+              - Arn
+  LambdaFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      Code: ./functions/
+      Description: Automatically tag new resources when they are launched
+      FunctionName: auto-tag-new-resources
+      Handler: index.lambda_handler
+      Role:
+        Fn::GetAtt:
+        - LambdaRole
+        - Arn
+      Runtime: python3.6
+  LambdaPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName:
+        Fn::GetAtt:
+        - LambdaFunction
+        - Arn
+      Principal: events.amazonaws.com
+      SourceArn:
+        Fn::GetAtt:
+        - CloudWatchEventRule
+        - Arn
+  LambdaRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+        - Effect: Allow
+          Principal:
+            Service:
+            - lambda.amazonaws.com
+          Action: sts:AssumeRole
+      Policies:
+      - PolicyName: lambda-ec2-execution-role
+        PolicyDocument:
+          Version: 2012-10-17
+          Statement:
+          - Sid: LambdaRoleCreateTags
+            Effect: Allow
+            Action: ec2:CreateTags
+            Resource:
+            - arn:aws:ec2:*:*:instance/*
+            - arn:aws:ec2:*:*:volume/*
+          - Sid: LambdaRoleDescribeResources
+            Effect: Allow
+            Action:
+            - ec2:DescribeInstances
+            - ec2:DescribeVolumes
+            Resource: '*'
+      - PolicyName: lambda-cloudwatch-log-role
+        PolicyDocument:
+          Version: 2012-10-17
+          Statement:
+          - Sid: LambdaWriteAndPutLogs
+            Effect: Allow
+            Action:
+            - logs:CreateLogGroup
+            - logs:CreateLogStream
+            - logs:PutLogEvents
+            Resource: '*'
+  CloudWatchEventRule:
+    Type: AWS::Events::Rule
+    Properties:
+      Description: To invoke lambda when there are newly provisioned resources
+      EventPattern:
+        detail-type:
+        - AWS API Call via CloudTrail
+        source:
+        - aws.ec2
+        detail:
+          eventSource:
+          - ec2.amazonaws.com
+          eventName:
+          - RunInstances
+      Name: auto-tag-cloudwatch-event-rule
+      State: ENABLED
+      Targets:
+      - Arn:
+          Fn::GetAtt:
+          - LambdaFunction
+          - Arn
+        Id: auto-tag-resource-lambda
