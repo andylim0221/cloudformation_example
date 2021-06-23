@@ -1,0 +1,149 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: S3 bucket event trigger Lambda and SNS.
+Parameters:
+  bucketName:
+    Description: Describe bucket name. 
+    Type: String
+    Default: <your unique favourite bucket name>
+
+Resources:
+  snsTopic:
+    Type: AWS::SNS::Topic
+    Properties:
+      DisplayName: example-sns-topic
+      TopicName: example-sns-topic
+  
+  snsTopicPolicy:
+    Type: AWS::SNS::TopicPolicy
+    Properties:
+      Topics:
+        - !Ref snsTopic 
+      PolicyDocument: 
+        Id: topicPolicy 
+        Version: 2012-10-17 
+        Statement: 
+          - Sid: SNS and Lambda
+            Effect: Allow 
+            Principal: 
+              Service: 
+              - lambda.amazonaws.com
+            Action: 
+              - sns:Publish 
+            Resource: 
+              - !GetAtt lambdaFunction.Arn          
+
+  snsSubscription:
+    Type: AWS::SNS::Subscription
+    Properties:
+      TopicArn: !Ref snsTopic
+      Protocol: email
+      Endpoint: <your email>
+
+  lambdaPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref lambdaFunction
+      Principal: s3.amazonaws.com
+      SourceArn: !Sub 
+        - arn:aws:s3:::${Bucket}
+        - {Bucket: !Ref bucketName}
+
+  lambdaExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument: 
+        Version: 2012-10-17
+        Statement:
+        - Effect: Allow
+          Principal:
+            Service: 
+              - lambda.amazonaws.com
+          Action:
+            - sts:AssumeRole
+      Policies:
+        - 
+         PolicyName: root
+         PolicyDocument:
+           Version: 2012-10-17
+           Statement:
+           - 
+            Effect: Allow
+            Action: 
+            - s3:GetBucketNotification
+            - s3:PutBucketNotification
+            Resource: 
+              - !Sub 
+                - arn:aws:s3:::${Bucket}
+                - Bucket: !Ref bucketName
+        - 
+          PolicyName: root-2
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+            - 
+              Effect: Allow 
+              Action:
+              - sns:Publish 
+              Resource:
+                - !Ref snsTopic 
+
+  lambdaFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      Environment:
+        Variables:
+          topicArn: !Ref snsTopic 
+      Description: Triggered by S3 event and send notification to SNS
+      FunctionName: snsTrigger
+      Handler: index.handler
+      MemorySize: 128
+      Role: !GetAtt lambdaExecutionRole.Arn
+      Runtime: python3.6 
+      Timeout: 500
+      Code:
+        ZipFile: | 
+          import boto3
+          import json
+          import os
+
+          def handler(event,context):
+            try:
+              sns = boto3.client('sns')
+              topicArn = os.environ.get('topicArn')
+              jsonEvent = json.dumps(event)
+              response = sns.publish(TopicArn=topicArn, Message=jsonEvent)
+              return response
+            except Exception as e:
+              return 'Error occured!'     
+          
+  s3Bucket:
+    Type: AWS::S3::Bucket
+    Properties: 
+      BucketName: !Ref bucketName 
+      AccessControl: BucketOwnerFullControl
+      VersioningConfiguration: 
+        Status: Enabled 
+      NotificationConfiguration:
+        LambdaConfigurations:
+          - Event: 's3:ObjectCreated:*'
+            Function: !GetAtt lambdaFunction.Arn
+
+  s3BucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref bucketName 
+      PolicyDocument: 
+        Statement:
+        - Sid: AllowPutObject from IAM user
+          Action:
+            - s3:PutObject
+          Effect: Allow
+          Resource: 
+            - !Sub 
+              - 'arn:aws:s3:::${Bucket}/*'
+              - Bucket: !Ref bucketName 
+          Principal: 
+            AWS: !Sub arn:aws:iam::${AWS::AccountId}:user/<iam user>
+          
+      
