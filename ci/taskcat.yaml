@@ -1,0 +1,8 @@
+project:
+  name: my-cfn-project
+  regions:
+  - us-west-2
+  - eu-north-1
+tests:
+  default:
+    template: ../auto-tag-resources/output.yaml
