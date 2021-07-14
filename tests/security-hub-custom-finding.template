@@ -107,6 +107,11 @@ Resources:
       Principal: events.amazonaws.com
   
   LambdaFunction:
+    Metadata:
+      cfn_nag:
+        rules_to_suppress:
+          - id: W89
+            reason: "Resite in VPC is not required"
     Type: AWS::Lambda::Function 
     Properties:
       FunctionName: !Sub ${AWS::StackName}-LambdaFunction
@@ -129,6 +134,11 @@ Resources:
       Timeout: 3
 
   LambdaExecutionRole:
+    Metadata:
+      cfn_nag:
+        rules_to_suppress:
+          - id: W11
+            reason: "This is a necessary to use the * resources"
     Type: AWS::IAM::Role 
     Properties:
       AssumeRolePolicyDocument:
@@ -181,6 +191,11 @@ Resources:
                   - !Sub arn:aws:s3:::${ConfigRuleFileS3Bucket}/${ConfigRuleFilS3Key}
 
   DeadLetterQueue:
+    Metadata:
+      cfn_nag:
+        rules_to_suppress:
+          - id: W48
+            reason: "KMS key is not required"
     Type: AWS::SQS::Queue 
     Properties:
       MessageRetentionPeriod: 1209600
