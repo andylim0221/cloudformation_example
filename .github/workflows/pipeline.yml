@@ -1,0 +1,23 @@
+name: 'CI/CD pipeline'
+
+on:
+  push:
+    branches:
+      - '*'
+    paths-ignore:
+      - 'README.md'
+      - 'deploy.sh'
+  pull_request:
+    branches:
+      - main
+  release:
+    types: [published, edited]
+
+jobs:
+  run_test:
+    runs-on: ubuntu-latest 
+    steps: 
+      - name: Simple test
+        uses: stelligent/cfn_nag@master
+        with:
+          input_path: tests

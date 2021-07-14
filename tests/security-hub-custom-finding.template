@@ -1,0 +1,199 @@
+---
+AWSTemplateFormatVersion: 2010-09-09
+Description: |
+  To import Security Hub findings from NI CCoE defined config rules check 
+
+Parameters:
+  LambdaCodeS3Bucket:
+    Type: String 
+    Description: S3 bucket for storing the lambda code 
+    Default: ccoe-cloudformation-distribution-bucket
+
+  LambdaCodeS3Key:
+    Type: String
+    Description: S3 object key for lambda code 
+    Default: global/lambda-zipfiles/custom-finding-into-sh.zip
+
+  # LambdaCodeS3ObjectVersion:
+  #   Type: String 
+  #   Description: S3 object version for lambda code 
+  #   Default: XafcUOQNlX0IWuBjfYJOK.xphHQOOwgg
+
+  ConfigRuleFileS3Bucket:
+    Type: String 
+    Description: The S3 bucket for the AWS FSBP config rules
+    Default: ccoe-cloudformation-distribution-bucket-us-east-1
+  
+  ConfigRuleFilS3Key:
+    Type: String 
+    Description: The S3 object key for AWS FSBP config rules
+    Default: AWS_FSBP.csv
+
+  ConfigRulePrefix:
+    Type: String 
+    Description: The prefix name for the config rule 
+    Default: ni-ccoe
+
+Metadata:
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+      - Label: 
+          default: "Config rule configuration"
+        Parameters:
+          - ConfigRuleFileS3Bucket
+          - ConfigRuleFilS3Key
+          - ConfigRulePrefix
+      - Label:
+          default: "Lambda Code Configuration"
+        Parameters:
+          - LambdaCodeS3Bucket
+          - LambdaCodeS3Key
+         # - LambdaCodeS3ObjectVersion
+    ParameterLabels:
+      ConfigRulePrefix:
+        default: "Config rule name prefix"
+      ConfigRuleFileS3Bucket:
+        default: "S3 Bucket"
+      ConfigRuleFilS3Key:
+        default: "S3 Key"
+      LambdaCodeS3Bucket:
+        default: "S3 Bucket"
+      LambdaCodeS3Key:
+        default: "S3 Key"
+      # LambdaCodeS3ObjectVersion:
+      #   default: "S3 Object Version"
+  
+Resources:
+  DetectComplianceChangeEventRule:
+    Type: AWS::Events::Rule 
+    Properties:
+      Name: !Sub ${AWS::StackName}-CCEventRule
+      Description: To capture compliance change events from AWS Config rules 
+      State: ENABLED
+      EventPattern:
+        source: 
+          - aws.config 
+        detail-type:
+          - "Config Rules Compliance Change"
+        detail:
+          messageType:
+            - ComplianceChangeNotification
+      Targets:
+        - Arn: !GetAtt LambdaFunction.Arn
+          Id: !Sub ${AWS::StackName}-configLambda1
+
+  DetectConfigScheduledNotificationEventRule:
+    Type: AWS::Events::Rule
+    Properties:
+      Name: !Sub ${AWS::StackName}-SNEventRule
+      Description: To capture scheduled notification events from AWS Config rules 
+      EventPattern: 
+        source: 
+          - aws.config 
+        detail:
+          additionalEventData:
+            notificationJobType:
+              - SCHEDULED_NOTIFICATION
+      State: ENABLED 
+      Targets:
+        - Arn: !GetAtt LambdaFunction.Arn  
+          Id: !Sub ${AWS::StackName}-configLambda2
+  
+  LambdaPermission:
+    Type: AWS::Lambda::Permission 
+    Properties:
+      FunctionName: !GetAtt LambdaFunction.Arn 
+      Action: lambda:InvokeFunction
+      Principal: events.amazonaws.com
+  
+  LambdaFunction:
+    Type: AWS::Lambda::Function 
+    Properties:
+      FunctionName: !Sub ${AWS::StackName}-LambdaFunction
+      Description: To convert Config rules findings into Security Hub findings
+      Code:
+        S3Bucket: !Sub ${LambdaCodeS3Bucket}-${AWS::Region}
+        S3Key: !Ref LambdaCodeS3Key
+        #S3ObjectVersion: !Ref LambdaCodeS3ObjectVersion
+      Runtime: python3.6
+      Handler: index.lambda_handler
+      Role: !GetAtt LambdaExecutionRole.Arn 
+      DeadLetterConfig: 
+        TargetArn: !GetAtt DeadLetterQueue.Arn
+      Environment:
+        Variables:
+          BUCKET: !Ref ConfigRuleFileS3Bucket
+          CSV_FILE: !Ref ConfigRuleFilS3Key
+          CONFIG_RULE_PREFIX: !Ref ConfigRulePrefix
+      ReservedConcurrentExecutions: 300
+      Timeout: 3
+
+  LambdaExecutionRole:
+    Type: AWS::IAM::Role 
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow 
+            Action:
+              - sts:AssumeRole
+            Principal:
+              Service: 
+                - lambda.amazonaws.com
+      Path: "/"
+      ManagedPolicyArns:
+        - "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
+      Policies:
+        - PolicyName: ConfigPolicy 
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow 
+                Action: 
+                  - config:DescribeConfigRules
+                Resource: 
+                  - "*"
+        - PolicyName: ImportSecurityHubFindingsPolicy
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement: 
+              - Effect: Allow 
+                Action: 
+                  - securityhub:BatchImportFindings
+                Resource: "*"
+        - PolicyName: SendSQSMessagePolicy
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow 
+                Action:
+                  - sqs:SendMessage
+                Resource:
+                  - !GetAtt DeadLetterQueue.Arn
+        - PolicyName: GetS3ObjectPolicy
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow 
+                Action:
+                  - s3:GetObject
+                Resource:
+                  - !Sub arn:aws:s3:::${ConfigRuleFileS3Bucket}/${ConfigRuleFilS3Key}
+
+  DeadLetterQueue:
+    Type: AWS::SQS::Queue 
+    Properties:
+      MessageRetentionPeriod: 1209600
+
+Outputs:
+  LambdaFunctionArn:
+    Value: !GetAtt LambdaFunction.Arn
+    Description: The ARN of the Lambda Function
+  
+  DetectComplianceChangeEventRuleArn:
+    Value: !GetAtt DetectComplianceChangeEventRule.Arn 
+    Description: The ARN of the CCEventRule 
+  
+  DetectConfigScheduledNotificationEventRuleArn:
+    Value: !GetAtt DetectConfigScheduledNotificationEventRule.Arn 
+    Description: The ARN of the SNEventRule 
