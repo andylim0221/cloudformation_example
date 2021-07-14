@@ -17,7 +17,11 @@ jobs:
   run_test:
     runs-on: ubuntu-latest 
     steps: 
-      - name: Simple test
+      - 
+        name: Checkout Repo 
+        uses: actions/checkout@v2
+      - 
+        name: Simple test
         uses: stelligent/cfn_nag@master
         with:
           input_path: tests
