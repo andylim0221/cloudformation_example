@@ -1,0 +1,23 @@
+# Starter pipeline
+# Start with a minimal pipeline that you can customize to build and deploy your code.
+# Add steps that build, run tests, deploy, and more:
+# https://aka.ms/yaml
+
+trigger:
+  branches:
+    include:
+      - s3-upload
+  paths: 
+    include:
+      - src/*
+
+
+pool:
+  vmImage: ubuntu-latest
+
+steps:
+    - task: S3Upload@1
+      inputs:
+        regionName: us-east-1
+        bucketName: ccoe-cloudformation-distribution-bucket-us-east-1
+        sourceFolder: $(Build.SourcesDirectory)/src
