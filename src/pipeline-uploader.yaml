@@ -1,0 +1,49 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: Azure DevOps uploader user and policy.
+Parameters:
+  BucketCustomizations:
+    Type: String
+    Description: >-
+      Customizations configuration bucket. WARNING: Be sure to have the correct
+      bucket name.
+Resources:
+  UploaderGroup:
+    Type: 'AWS::IAM::Group'
+  UploaderCustomizations:
+    Type: 'AWS::IAM::User'
+    Properties:
+      Policies:
+        - PolicyName: !Sub 'UploaderCustomizations-${BucketCustomizations}-${AWS::Region}'
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Action:
+                  - 's3:ListAllMyBuckets'
+                  - 's3:HeadBucket'
+                Effect: Allow
+                Resource:
+                  - '*'
+              - Action:
+                  - 's3:ListBucket'
+                  - 's3:GetBucketAcl'
+                Effect: Allow
+                Resource:
+                  - !Sub 'arn:aws:s3:::${BucketCustomizations}'
+              - Action:
+                  - 's3:GetObjectAcl'
+                  - 's3:GetObject'
+                  - 's3:PutObjectAcl'
+                  - 's3:PutObject'
+                Effect: Allow
+                Resource:
+                  - !Sub 'arn:aws:s3:::${BucketCustomizations}/*'
+      Groups:
+        - !Sub '${UploaderGroup}'
+    DependsOn: UploaderGroup
+Outputs:
+  UploaderGroup:
+    Description: IAM Group for pipeline uploaders.
+    Value: !Sub '${UploaderGroup}'
+  UploaderCustomizations:
+    Description: IAM User for customizations uploader.
+    Value: !Sub '${UploaderCustomizations}'
