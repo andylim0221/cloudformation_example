@@ -1,0 +1,187 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: |
+  To deploy Security Hub alerting system.
+
+Parameters:
+  S3Bucket:
+    Type: String 
+    Description: S3 Bucket for Lambda Layer.
+    Default: ccoe-cloudformation-distribution-bucket
+
+  LambdaLayerZip:
+    Type: String 
+    Description: S3 Key for Lambda Layer within source bucket.
+    Default: global/lambda_layer/pymsteams.zip
+
+  LambdaCodeZip:
+    Type: String 
+    Description: S3 Key for Lambda Code within source bucket.
+    Default: global/lambda_zipfiles/sechub_to_msteam.zip
+
+  HookUrl:
+    Type: String 
+    Description: Microsoft Team Webhook URL. 
+  
+  PagerDutyUrl:
+    Type: String 
+    Description: PagerDuty Integration URL. Leave blank if not applicable.
+
+  MTeamCustomActionArn:
+    Type: String 
+    Description: Security Hub custom action ARN to send finding to Microsoft Teams. 
+  
+  PagerDutyCustomActionArn:
+    Type: String 
+    Description: Security Hub custom action ARN to send finding to PagerDuty. Leave blank if not applicable.
+
+Metadata:
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+      - 
+        Label:
+          default: Basic Configuration
+        Parameters:
+          - S3Bucket 
+          - LambdaLayerZip 
+          - LambdaCodeZip 
+      - 
+        Label:
+          default: Subscription Configuration
+        Parameters: 
+          - HookUrl
+          - PagerDutyUrl
+          - MTeamCustomActionArn 
+          - PagerDutyCustomActionArn
+    ParameterLabels:
+      S3Bucket:
+        default: "S3 Bucket"
+      LambdaLayerZip:
+        default: "Lambda Layer S3 Key"
+      LambdaCodeZip:
+        default: "Lambda code S3 Key"
+      HookUrl:
+        default: "Microsoft Teams Incoming Webhook URL"
+      PagerDutyUrl:
+        default: "Pager Duty Subscription URL"
+      MTeamCustomActionArn:
+        default: "Custom Action ARN for Microsoft Team"
+      PagerDutyCustomActionArn:
+        default: "Custom Action ARN for PagerDuty"
+      
+Conditions:
+  EnablePagerDutySubscription: !Not [!Equals [!Ref PagerDutyUrl, ""]] 
+  IsCCoEManagedBucket: !Equals [!Ref S3Bucket, "ccoe-cloudformation-distribution-bucket"]
+
+Resources:
+
+  SecHubMTeamEventRule:
+    Type: AWS::Events::Rule 
+    Properties:
+      Name: !Sub ${AWS::StackName}-mteamEventRule
+      Description: To detect Secruity Hub custom action for Microsoft Teams 
+      EventPattern:
+        source:
+          - aws.securityhub 
+        resources:
+          - !Ref MTeamCustomActionArn
+      State: ENABLED 
+      Targets:
+        - Arn: !GetAtt LambdaFunction.Arn 
+          Id: LambdaFunction 
+
+  LambdaLayer:
+    Type: AWS::Lambda::LayerVersion
+    Properties:
+      CompatibleRuntimes:
+        - python3.6
+      Content:
+        S3Bucket: !If [IsCCoEManagedBucket, !Sub "${S3Bucket}-${AWS::Region}", !Ref S3Bucket]
+        S3Key: !Sub ${LambdaLayerZip}
+
+  LambdaExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow 
+            Action: sts:AssumeRole 
+            Principal:
+              Service: lambda.amazonaws.com
+      Path: /
+      ManagedPolicyArns:
+        - "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
+
+  LambdaPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !GetAtt LambdaFunction.Arn 
+      Action: lambda:InvokeFunction
+      Principal: events.amazonaws.com 
+      SourceArn: !GetAtt SecHubMTeamEventRule.Arn
+
+  LambdaFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      Code:
+        S3Bucket: !If [IsCCoEManagedBucket, !Sub "${S3Bucket}-${AWS::Region}", !Ref S3Bucket]
+        S3Key: !Sub ${LambdaCodeZip}
+      Description: To forward message to MTeam or PagerDuty
+      Environment:
+        Variables:
+          HOOK_URL: !Ref HookUrl
+          MTEAM_CUSTOM_ACITON_ARN: !Ref MTeamCustomActionArn
+      FunctionName: !Sub ${AWS::StackName}-lambdaFunction
+      Handler: index.lambda_handler
+      Layers:
+        - !Sub ${LambdaLayer}
+      MemorySize: 128
+      Role: !GetAtt LambdaExecutionRole.Arn 
+      Runtime: python3.6
+       
+  SecHubPagerDutyEventRule:
+    Condition: EnablePagerDutySubscription
+    Type: AWS::Events::Rule
+    Properties:
+      Description: To detect Security Hub custom action event pattern 
+      EventPattern:
+        source:
+          - aws.securityhub
+        resources:
+          - !Ref PagerDutyCustomActionArn
+        detail:
+          actionName: 
+            - exists: true 
+      Name: !Sub ${AWS::StackName}-pagerDutyEventRule
+      State: ENABLED
+      Targets:
+        - Arn: !Ref SNSTopic   
+          Id: SNSTopic 
+  
+  SNSTopic:
+    Condition: EnablePagerDutySubscription
+    Type: AWS::SNS::Topic
+    Properties:
+      TopicName: !Sub ${AWS::StackName}-snsTopic
+      Subscription:
+        - Endpoint: !Ref PagerDutyUrl
+          Protocol: https 
+  
+  EventTopicPolicy:
+    Condition: EnablePagerDutySubscription
+    Type: AWS::SNS::TopicPolicy 
+    Properties:
+      Topics:
+        - !Ref SNSTopic 
+      PolicyDocument:
+        Statement:
+          - Effect: Allow 
+            Action: sns:Publish 
+            Principal:
+              Service: events.amazonaws.com 
+            Resource: "*"
+    
+Outputs:
+  LambdaFunctionArn:
+    Value: !GetAtt LambdaFunction.Arn
+    Description: The ARN of the Lambda function 
