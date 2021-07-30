@@ -1,0 +1,95 @@
+﻿Service,Control,Trigger,ConfigName,Severity,Enable/Disable,Reason
+ACM,[ACM.1] Imported ACM certificates should be renewed after a specified time period,Configuration Change,ACM_CERTIFICATE_EXPIRATION_CHECK,Medium,Enable,data security
+API Gateway,[APIGateway.1] API Gateway REST and WebSocket API logging should be enabled,Configuration Change,API_GW_EXECUTION_LOGGING_ENABLED,Medium,Disable,non-critical in sandbox env
+,[APIGateway.2] API Gateway REST API stages should be configured to use SSL certificates for backend authentication,Configuration Change,API_GW_SSL_ENABLED,Medium,Disable,non-critical in sandbox env
+,[APIGateway.3] API Gateway REST API stages should have AWS X-Ray tracing enabled,Configuration Change,API_GW_XRAY_ENABLED,Low,Disable,up to user's choice to enable AWS X-Ray
+AutoScaling,[AutoScaling.1] Auto Scaling groups associated with a load balancer should use load balancer health checks,Configuration Change,AUTOSCALING_GROUP_ELB_HEALTHCHECK_REQUIRED,Low,Disable,up to user's choice
+CloudFront,[CloudFront.1] CloudFront distributions should have a default root object configured,Configuration Change,CLOUDFRONT_DEFAULT_ROOT_OBJECT_CONFIGURED,Critical,Enable,help avoid exposing content of web distribution
+,[CloudFront.2] CloudFront distributions should have origin access identity enabled,Configuration Change,CLOUDFRONT_ORIGIN_ACCESS_IDENTITY_ENABLED,Medium,Enable,encouraged to restrict user from accessing S3 bucket directly
+,[CloudFront.3] CloudFront distributions should require encryption in transit,Configuration Change,CLOUDFRONT_VIEWER_POLICY_HTTPS,Medium,Enable,data security
+,[CloudFront.4] CloudFront distributions should have origin failover configured,Configuration Change,CLOUDFRONT_ORIGIN_FAILOVER_ENABLED,Low,Disable,up to user's choice
+CloudTrail,[CloudTrail.1] CloudTrail should be enabled and configured with at least one multi-Region trail,Configuration Change,MULTI_REGION_CLOUD_TRAIL_ENABLED,High,Enable,enabled through Control Tower account factory
+,[CloudTrail.2] CloudTrail should have encryption at rest enabled,Configuration Change,CLOUD_TRAIL_ENCRYPTION_ENABLED,Medium,Enable,data security
+,[CloudTrail.4] Ensure CloudTrail log file validation is enabled,Periodic,CLOUD_TRAIL_LOG_FILE_VALIDATION_ENABLED,Low,Disable,non-critical in sandbox env
+,[CloudTrail.5] Ensure CloudTrail trails are integrated with Amazon CloudWatch Logs,Periodic,CLOUD_TRAIL_CLOUD_WATCH_LOGS_ENABLED,Low,Disable,non-critical in sandbox env
+CodeBuild,[CodeBuild.1] CodeBuild GitHub or Bitbucket source repository URLs should use OAuth,Configuration Change,CODEBUILD_PROJECT_SOURCE_REPO_URL_CHECK,Critical,Enable,Github/bitbucket url should not contain personal access token or username and password.
+,[CodeBuild.2] CodeBuild project environment variables should not contain clear text credentials,Configuration Change,CODEBUILD_PROJECT_ENVVAR_AWSCRED_CHECK,Critical,Enable,Avoid users using clear text credentials on env variables
+Config,[Config.1] AWS Config should be enabled,,,,Disable,
+DMS,[DMS.1] AWS Database Migration Service replication instances should not be public,Periodic,DMS_REPLICATION_NOT_PUBLIC,Critical,Enable,avoid public access to DMS replication instance
+DynamoDB,[DynamoDB.1] DynamoDB tables should automatically scale capacity with demand,Periodic,DYNAMODB_AUTOSCALING_ENABLED,Medium,Disable,up to user's choice
+,[DynamoDB.2] DynamoDB tables should have point-in-time recovery enabled,Configuration Change,DYNAMODB_PITR_ENABLED,Medium,Disable,up to user's choice
+,[DynamoDB.3] DynamoDB Accelerator (DAX) clusters should be encrypted at rest,Periodic,DAX_ENCRYPTION_ENABLED,Medium,Enable,security concern
+EC2,"[EC2.1] Amazon EBS snapshots should not be public, determined by the ability to be restorable by anyone",Periodic,EBS_SNAPSHOT_PUBLIC_RESTORABLE_CHECK,Critical,Enable,avoid public access
+,[EC2.2] The VPC default security group should not allow inbound and outbound traffic,Configuration Change,VPC_DEFAULT_SECURITY_GROUP_CLOSED,High,Enable,network security
+,[EC2.3] Attached EBS volumes should be encrypted at rest,Periodic,EC2_EBS_ENCRYPTION_BY_DEFAULT,Medium,Enable,data security
+,[EC2.4] Stopped EC2 instances should be removed after a specified time period,Periodic,EC2_STOPPED_INSTANCE,Medium,Enable,Can trigger a SNS to user that this instace has been stopped for x day and opt to restart or terminate the instance
+,[EC2.6] VPC flow logging should be enabled in all VPCs,Periodic,VPC_FLOW_LOGS_ENABLED,Medium,Disable,up to user's choice
+,[EC2.7] EBS default encryption should be enabled,Configuration Change,EC2_EBS_ENCRYPTION_BY_DEFAULT,Medium,Enable,data security
+,[EC2.8] EC2 instances should use IMDSv2,Configuration Change,EC2_IMDSV2_CHECK,High,Disable,non-critical in sandbox env
+,[EC2.9] EC2 instances should not have a public IP address,Configuration Change,EC2_INSTANCE_NO_PUBLIC_IP,High,Enable,avoid public access
+,[EC2.10] Amazon EC2 should be configured to use VPC endpoints,Periodic,SERVICE_VPC_ENDPOINT_ENABLED,Medium,Disable,non-critical in sandbox env
+,[EC2.15] EC2 subnets should not automatically assign public IP addresses,Configuration Change,SUBNET_AUTO_ASSIGN_PUBLIC_IP_DISABLED,High,Enable,network security
+,[EC2.16] Unused network access control lists should be removed,Configuration Change,VPC_NETWORK_ACL_UNUSED_CHECK,Low,Disable,Not urgent
+EFS,[EFS.1] Amazon EFS should be configured to encrypt file data at rest using AWS KMS,Configuration Change,EFS_ENCRYPTED_CHECK,Medium,Enable,data security
+,[EFS.2] Amazon EFS volumes should be in backup plans,Periodic,EFS_IN_BACKUP_PLAN,Medium,Disable,up to user's choice
+Beanstalk,[ElasticBeanstalk.1] Elastic Beanstalk environments should have enhanced health reporting enabled,Configuration Change,BEANSTALK_ENHANCED_HEALTH_REPORTING_ENABLED,Low,Disable,up to user's choice to setup this feature
+,[ElasticBeanstalk.2] Elastic Beanstalk managed platform updates should be enabled,Configuration Change,ELASTIC_BEANSTALK_MANAGED_UPDATES_ENABLED,High,Disable,up to user's choice
+ELB,[ELB.3] Classic Load Balancer listeners should be configured with HTTPS or TLS termination,Configuration Change,ELB_TLS_HTTPS_LISTENERS_ONLY,Medium,Enable,data security
+,[ELB.4] Application load balancers should be configured to drop HTTP headers,Configuration Change,ALB_HTTP_DROP_INVALID_HEADER_ENABLED,Medium,Enable,network security
+,[ELB.5] Application and Classic Load Balancers logging should be enabled,Configuration Change,ELB_LOGGING_ENABLED,Medium,Disable,up to user's choice
+,[ELB.6] Application Load Balancer deletion protection should be enabled,Configuration Change,ELB_DELETION_PROTECTION_ENABLED,Medium,Disable,up to user's choice
+,[ELBv2.1] Application Load Balancer should be configured to redirect all HTTP requests to HTTPS,Periodic,ALB_HTTP_TO_HTTPS_REDIRECTION_CHECK,Medium,Enable,network security
+EMR,[EMR.1] Amazon EMR cluster master nodes should not have public IP addresses,Periodic,EMR_MASTER_NO_PUBLIC_IP,High,Enable,avoid public access
+ElasticSearch,[ES.1] Elasticsearch domains should have encryption at-rest enabled,Configuration Change,ELASTICSEARCH_ENCRYPTED_AT_REST,Medium,Enable,data security
+,[ES.2] Amazon Elasticsearch Service domains should be in a VPC,Configuration Change,ELASTICSEARCH_IN_VPC_ONLY,Critical,Enable,
+,[ES.3] Amazon Elasticsearch Service domains should encrypt data sent between nodes,Configuration Change,ELASTICSEARCH_NODE_TO_NODE_ENCRYPTION_CHECK,Medium,Enable,data security
+GuardDuty,[GuardDuty.1] GuardDuty should be enabled,Periodic,GUARDDUTY_ENABLED_CENTRALIZED,High,Enable,We can enable GuardDuty on the accounts when we enroll them through account factory. 
+IAM,"[IAM.1] IAM policies should not allow full ""*"" administrative privileges",Configuration Change,IAM_POLICY_NO_STATEMENTS_WITH_ADMIN_ACCESS,High,Enable,"Can enable this because this control checks customer managed policies instead of AWS managed policies, from here we only recommend users to use the AWS managed policies which provides administrative access"
+,[IAM.2] IAM users should not have IAM policies attached,Configuration Change,IAM_USER_NO_POLICIES_CHECK,Low,Disable,Not suitable for our organizations
+,[IAM.3] IAM users' access keys should be rotated every 90 days or less,Periodic,ACCESS_KEYS_ROTATED,Medium,Disable,Not suitable for our organizations
+,[IAM.4] IAM root user access key should not exist,Periodic,IAM_ROOT_ACCESS_KEY_CHECK,Critical,Enable,Must be enabled
+,[IAM.5] MFA should be enabled for all IAM users that have a console password,Periodic,MFA_ENABLED_FOR_IAM_CONSOLE_ACCESS,Medium,Disable,Not suitable for sandbox
+,[IAM.6] Hardware MFA should be enabled for the root user,Periodic,ROOT_ACCOUNT_HARDWARE_MFA_ENABLED,Critical,Disable,Disabled for sandbox
+,[IAM.7] Password policies for IAM users should have strong configurations,Periodic,IAM_PASSWORD_POLICY,Medium,Disable,Disabled for sandbox
+,[IAM.8] Unused IAM user credentials should be removed,Periodic,IAM_USER_UNUSED_CREDENTIALS_CHECK,Medium,Enable,"To remove unnecessary IAM users in each account by setting max age of credentials, for example, 120 days"
+KMS,[KMS.1] IAM customer managed policies should not allow decryption actions on all KMS keys,"Configuration Change
+",IAM_CUSTOMER_POLICY_BLOCKED_KMS_ACTIONS,Medium,Enable,Should modify this rule because there will be use cases when there are IAM users need to have this permission
+,[KMS.2] IAM principals should not have IAM inline policies that allow decryption actions on all KMS keys,Configuration Change,IAM_INLINE_POLICY_BLOCKED_KMS_ACTIONS,Medium,Enable,Should modify this rule because there will be use cases when there are IAM users need to have this permission
+,[KMS.3] AWS KMS keys should not be unintentionally deleted,Periodic,KMS_CMK_NOT_SCHEDULED_FOR_DELETION,Critical,Wait for confirmation,"Check if CMK is scheduled for deletion and this will trigger non-compliant. We can modify this under certain condition such that with certain tag provided with the reason as tag value on this CMK, the action is allowed"
+Lambda,[Lambda.1] Lambda function policies should prohibit public access,Configuration Change,LAMBDA_FUNCTION_PUBLIC_ACCESS_PROHIBITED,Critical,Enable,should not allow public access
+,[Lambda.2] Lambda functions should use supported runtimes,Configuration Change,LAMBDA_FUNCTION_SETTINGS_CHECK,Medium,Disable,allow user to try out custom runtime
+,[Lambda.4] Lambda functions should have a dead-letter queue configured,Configuration Change,LAMBDA_DLQ_CHECK,Medium,Disable,non-critical in sandbox env
+RDS,[RDS.1] RDS snapshots should be private,Configuration Change,RDS_SNAPSHOTS_PUBLIC_PROHIBITED,Critical,Enable,network security
+,"[RDS.2] RDS DB instances should prohibit public access, determined by the PubliclyAccessible configuration",Configuration Change,RDS_INSTANCE_PUBLIC_ACCESS_CHECK,Critical,Enable,network security
+,[RDS.3] RDS DB instances should have encryption at rest enabled,Configuration Change,RDS_STORAGE_ENCRYPTED,Medium,Enable,data security
+,[RDS.4] RDS cluster snapshots and database snapshots should be encrypted at rest,Configuration Change,RDS_SNAPSHOT_ENCRYPTED,Medium,Enable,data security
+,[RDS.5] RDS DB instances should be configured with multiple Availability Zones,Configuration Change,RDS_MULTI_AZ_SUPPORT,Medium,Disable,up to user's choice
+,[RDS.6] Enhanced monitoring should be configured for RDS DB instances and clusters,Configuration Change,RDS_ENHANCED_MONITORING_ENABLED,Medium,Disable,up to user's choice
+,[RDS.7] RDS clusters should have deletion protection enabled,Configuration Change,RDS_CLUSTER_DELETION_PROTECTION_ENABLED,Low,Disable,up to user's choice
+,[RDS.8] RDS DB instances should have deletion protection enabled,Configuration Change,RDS_INSTANCE_DELETION_PROTECTION_ENABLED,Low,Disable,up to user's choice
+,[RDS.9] Database logging should be enabled,Configuration Change,RDS_LOGGING_ENABLED,Medium,Disable,up to user's choice
+,[RDS.10] IAM authentication should be configured for RDS instances,Configuration Change,RDS_INSTANCE_IAM_AUTHENTICATION_ENABLED,Medium,Wait for confirmation,Should we restrict user to use passwordless?
+,[RDS.12] IAM authentication should be configured for RDS clusters,Configuration Change,RDS_CLUSTER_IAM_AUTHENTICATION_ENABLED,Medium,Wait for confirmation,Should we restrict user to use passwordless?
+,[RDS.13] RDS automatic minor version upgrades should be enabled,Configuration Change,RDS_AUTOMATIC_MINOR_VERSION_UPGRADE_ENABLED,High,Disable,up to user's choice
+,[RDS.14] Amazon Aurora clusters should have backtracking enabled,Configuration Change,AURORA_MYSQL_BACKTRACKING_ENABLED,Medium,Disable,up to user's choice
+Redshift,[Redshift.1] Amazon Redshift clusters should prohibit public access,Configuration Change,REDSHIFT_CLUSTER_PUBLIC_ACCESS_CHECK,Critical,Enable,shold not allow public access
+,[Redshift.2] Connections to Amazon Redshift clusters should be encrypted in transit,Configuration Change,REDSHIFT_REQUIRE_TLS_SSL,Medium,Enable,encrypted connection
+,[Redshift.3] Amazon Redshift clusters should have automatic snapshots enabled,Configuration Change,REDSHIFT_BACKUP_ENABLED,Medium,Disable,up to user's choice to enable this snapshot automated in sandbox env
+,[Redshift.6] Amazon Redshift should have automatic upgrades to major versions enabled,Configuration Change,REDSHIFT_CLUSTER_MAINTENANCESETTINGS_CHECK,Medium,Disable,up to user's choice
+,[Redshift.7] Amazon Redshift clusters should use enhanced VPC routing,Configuration Change,REDSHIFT_ENHANCED_VPC_ROUTING_ENABLED,High,Enable,secure network traffic through NACL or security group
+S3,[S3.1] S3 Block Public Access setting should be enabled,Configuration Change,S3_ACCOUNT_LEVEL_PUBLIC_ACCESS_BLOCKS,Medium,Enable,Ensure no objects have public access
+,[S3.2] S3 buckets should prohibit public read access,Configuration Change,S3_BUCKET_PUBLIC_READ_PROHIBITED,Critical,Enable,avoid public read to S3 bucekt
+,[S3.3] S3 buckets should prohibit public write access,Configuration Change,S3_BUCKET_PUBLIC_WRITE_PROHIBITED,Critical,Enable,avoid public write to S3 bucket
+,[S3.4] S3 buckets should have server-side encryption enabled,Configuration Change,S3_BUCKET_SERVER_SIDE_ENCRYPTION_ENABLED,Medium,Enable,Security layer
+,[S3.5] S3 buckets should require requests to use Secure Socket Layer,Configuration Change,S3_BUCKET_SSL_REQUESTS_ONLY,Medium,Enable,Allow only HTTPs request to the S3 bucket
+,[S3.6] Amazon S3 permissions granted to other AWS accounts in bucket policies should be restricted,Configuration Change,S3_BUCKET_BLACKLISTED_ACTIONS_PROHIBITED,High,Enable,"Avoid other principal than owner to do actions on bucket policy, ACL and encryption configuration"
+SageMaker,[SageMaker.1] SageMaker notebook instances should not have direct internet access,Periodic,SAGEMAKER_NOTEBOOK_NO_DIRECT_INTERNET_ACCESS,High,Enable,"not commonly used, however, should implement for security"
+Secrets Manager,[SecretsManager.1] Secrets Manager secrets should have automatic rotation enabled,Configuration Change,SECRETSMANAGER_ROTATION_ENABLED_CHECK,Medium,Enable,encourage rotating secret
+,[SecretsManager.2] Secrets Manager secrets configured with automatic rotation should rotate successfully,Configuration Change,SECRETSMANAGER_SCHEDULED_ROTATION_SUCCESS_CHECK,Medium,Enable,encourage rotating secret
+,[SecretsManager.3] Remove unused Secrets Manager secrets,Periodic,SECRETSMANAGER_SECRET_UNUSED,Medium,Enable,encourage removing secret
+,[SecretsManager.4] Secrets Manager secrets should be rotated within a specified number of days,Periodic,SECRETSMANAGER_SECRET_PERIODIC_ROTATION,Medium,Enable,"can discuss for how many days should be optimal, 90 days by default"
+SNS,[SNS.1] SNS topics should be encrypted at rest using AWS KMS,Configuration Change,SNS_ENCRYPTED_KMS,Medium,Enable,security concern
+SSM,[SSM.1] EC2 instances should be managed by AWS Systems Manager,Configuration Change,EC2_INSTANCE_MANAGED_BY_SSM,Medium,Wait for confirmation,"If so, we would require users to either install SSM agent in those instances without it or launch only instance with SSM agent preinstalled. From what we discussed last time to encourage users using SSM, this could be a good approach. Or perhaps launch using template from Service Catalog"
+,[SSM.2] All EC2 instances managed by Systems Manager should be compliant with patching requirements,Configuration Change,EC2_MANAGEDINSTANCE_PATCH_COMPLIANCE_STATUS_CHECK,High,Wait for confirmation,Followed by above
+,[SSM.3] Instances managed by Systems Manager should have an association compliance status of COMPLIANT,Configuration Change,EC2_MANAGEDINSTANCE_ASSOCIATION_COMPLIANCE_STATUS_CHECK,Low,Disable,Not urgent
+WAF,[WAF.1] AWS WAF Classic global web ACL logging should be enabled,Periodic,WAF_CLASSIC_LOGGING_ENABLED,Medium,Disable,"Not suitable for sandbox account since not commonly used, However this could be useful for workload use"
