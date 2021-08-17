@@ -1,0 +1,32 @@
+AWSTemplateFormatVersion: 2010-09-09
+
+Parameters:
+  S3BucketName:
+    Type: String 
+    Default: andy-static-file 
+
+  S3BucketPrefix:
+    Type: String 
+    Default: public 
+
+Resources:
+  S3Bucket:
+    Type: AWS::S3::Bucket
+    DeletionPolicy: Retain 
+    Properties:
+      AccessControl: PublicRead 
+      BucketName: !Ref S3BucketName 
+
+  S3BucketPolicies:
+    Type: AWS::S3::BucketPolicy 
+    Properties:
+      Bucket: !Ref S3Bucket 
+      PolicyDocument:
+        Version: 2012-10-17
+        Statement: 
+          - Effect: Allow 
+            Action: 
+              - s3:GetObject
+            Principal: '*'
+            Resource: !Sub 'arn:aws:s3:::${S3BucketName}/${S3BucketPrefix}/*'
+
