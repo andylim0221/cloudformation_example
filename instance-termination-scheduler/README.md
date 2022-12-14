@@ -1,5 +1,4 @@
 # Instance Termination Scheduler Solution
-As per requested from [this](https://nijira.natinst.com/browse/CLOUD-298) task and Wayne Milam, it would be nice to design a utility we can deploy to user accounts so that EC2 instances are terminated after a specific date.  This would probably be driven by a tag that specifies the termination date, and then a regularly executed Lambda to inspect those tags and terminate the instances. Their EBS volumes should probably go with them.
 
 To understand the requirements, we have to consider the following criteria:
 1. The level of ***time precision (Precision)***, how much is it acceptable for the client? Miliseconds? Second? Minutes? Or up to hours?
@@ -8,13 +7,6 @@ To understand the requirements, we have to consider the following criteria:
 
 ## Prerequisites
 Make sure you have [AWS CLI](https://docs.aws.amazon.com/cli/latest/userguide/install-cliv2.html) configured and Git installed.
-
-Clone this repository and go to this directory:
-```
-git clone git@ssh.dev.azure.com:v3/ni/IT/ccoe
-git checkout andy
-cd ccoe/team-notes/Andy/auto-terminate-resources/version_1
-```
 
 ## Architecture
 ![architecture](./static/architecture.png)
