@@ -75,8 +75,8 @@ Resources:
         ZipFile: | 
           import json
           import os
-          from botocore.vendored import requests
-
+          import requests
+          
           def handler(event,context):
             try:
               bot_request = 'https://api.telegram.org/' + TELEGRAM_TOKEN + '/sendMessage?chat_id=' + TELEGRAM_CHAT_ID + '&text=' + event['Records'][0]['Sns']['Message'] 
