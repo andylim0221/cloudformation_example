@@ -1,0 +1,114 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: Lambda functions to send email.
+Parameters:
+  SESArn:
+    Description: SES Arn. 
+    Type: String
+  SESSourceEmail:
+    Description: SES source email.
+    Type: String
+
+Resources:
+  # SNS Topic to send email
+  EmailSNSTopic:
+    Type: AWS::SNS::Topic
+    Properties:
+      DisplayName: 
+      TopicName: Email-Topic
+  
+  EmailSNSTopicPolicy:
+    Type: AWS::SNS::TopicPolicy
+    Properties:
+      Topics:
+        - !Ref EmailSNSTopic 
+      PolicyDocument: 
+        Id: EmailSNSTopicPolicy 
+        Version: 2012-10-17 
+        Statement: 
+          - Sid: SNS and Lambda
+            Effect: Allow 
+            Principal: 
+              Service: 
+              - lambda.amazonaws.com
+            Action: 
+              - sns:Publish 
+            Resource: 
+              - !GetAtt SESLambdaFunction.Arn          
+
+  SNSSESLambdaPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref SESLambdaFunction
+      Principal: sns.amazonaws.com
+      SourceArn: !Ref EmailSNSTopic
+
+  SESLambdaExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument: 
+        Version: 2012-10-17
+        Statement:
+        - Effect: Allow
+          Principal:
+            Service: 
+              - lambda.amazonaws.com
+          Action:
+            - sts:AssumeRole
+      Policies:
+        - 
+         PolicyName: LambdaSendSESPolicy
+         PolicyDocument:
+           Version: 2012-10-17
+           Statement:
+           - 
+            Effect: Allow
+            Action: 
+            - ses:SendEmail
+            Resource: 
+              - !Ref SESArn
+      ManagedPolicyArns: 
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+
+  SESLambdaFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      Environment:
+        Variables:
+          SES_ENDPOINT: !Ref SESArn
+          SES_SOURCE_EMAIL: !Ref SESSourceEmail
+      FunctionName: send-email
+      Handler: index.handler
+      MemorySize: 128
+      Role: !GetAtt SESLambdaExecutionRole.Arn
+      Runtime: python3.9
+      Timeout: 500
+      Code:
+        ZipFile: | 
+          import boto3
+          import json
+          import os
+
+          def handler(event,context):
+            try:
+              ses = boto3.client('ses')
+              ses_endpoint = os.environ.get('SES_ENDPOINT')
+              ses_source_email = os.environ.get('SES_SOURCE_EMAIL')
+              jsonEvent = json.dumps(event)
+              ses.publish(
+                Source=ses_source_email, 
+                Destination=jsonEvent["email"], 
+                Message={
+                  'Subject': {
+                    'Data': jsonEvent["subject"],
+                  },
+                  'Body': {
+                    'Text': {
+                      'Data': jsonEvent["data"]
+                    }
+                  }
+              })
+            except Exception as e:
+              print(e)
+              return 'Error occured!'  
+      

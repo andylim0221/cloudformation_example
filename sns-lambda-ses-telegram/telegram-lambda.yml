@@ -1,0 +1,92 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: Lambda functions to send telegram.
+Parameters:
+  TelegramAPIKey:
+    Description: Telegram API key
+    Type: String
+  TelegramChatId:
+    Description: Telegram Chat ID
+    Type: String
+    
+Resources:
+  # SNS Topic to send telegram
+  TelegramSNSTopic:
+    Type: AWS::SNS::Topic
+    Properties:
+      DisplayName: 
+      TopicName: Telegram-Topic
+  
+  TelegramSNSTopicPolicy:
+    Type: AWS::SNS::TopicPolicy
+    Properties:
+      Topics:
+        - !Ref TelegramSNSTopic 
+      PolicyDocument: 
+        Id: TelegramSNSTopicPolicy 
+        Version: 2012-10-17 
+        Statement: 
+          - Sid: SNS and Lambda
+            Effect: Allow 
+            Principal: 
+              Service: 
+              - lambda.amazonaws.com
+            Action: 
+              - sns:Publish 
+            Resource: 
+              - !GetAtt LambdaFunction.Arn          
+
+  SNSLambdaPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref LambdaFunction
+      Principal: sns.amazonaws.com
+      SourceArn: !Ref TelegramSNSTopic
+
+  LambdaExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument: 
+        Version: 2012-10-17
+        Statement:
+        - Effect: Allow
+          Principal:
+            Service: 
+              - lambda.amazonaws.com
+          Action:
+            - sts:AssumeRole
+      ManagedPolicyArns: 
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+
+  LambdaFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      Environment:
+        Variables:
+          TELEGRAM_TOKEN: !Ref TelegramAPIKey
+          TELEGRAM_CHAT_ID: !Ref TelegramChatId
+      FunctionName: send-telegram
+      Handler: index.handler
+      MemorySize: 128
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Runtime: python3.9
+      Timeout: 500
+      Code:
+        ZipFile: | 
+          import json
+          import os
+          from botocore.vendored import requests
+
+          def handler(event,context):
+            try:
+              bot_request = 'https://api.telegram.org/' + TELEGRAM_TOKEN + '/sendMessage?chat_id=' + TELEGRAM_CHAT_ID + '&text=' + event['Records'][0]['Sns']['Message'] 
+              response = requests.get(bot_request) 
+              return {
+                'statusCode': response.status_code,
+                'msg': json.dumps('Message sent with success!'),
+                'body': json.dumps(response.json())
+              }
+            except Exception as e:
+              print(e)
+              return 'Error occured!'  
+      
