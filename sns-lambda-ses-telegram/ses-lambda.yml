@@ -1,9 +1,6 @@
 AWSTemplateFormatVersion: 2010-09-09
 Description: Lambda functions to send email.
 Parameters:
-  SESArn:
-    Description: SES Arn. 
-    Type: String
   SESSourceEmail:
     Description: SES source email.
     Type: String
@@ -13,7 +10,7 @@ Resources:
   EmailSNSTopic:
     Type: AWS::SNS::Topic
     Properties:
-      DisplayName: 
+      DisplayName: ses 
       TopicName: Email-Topic
   
   EmailSNSTopicPolicy:
@@ -34,6 +31,13 @@ Resources:
               - sns:Publish 
             Resource: 
               - !GetAtt SESLambdaFunction.Arn          
+
+  SESLambdaSubscription:
+    Type: AWS::SNS::Subscription
+    Properties:
+      TopicArn: !Ref EmailSNSTopic
+      Endpoint: !GetAtt SESLambdaFunction.Arn
+      Protocol: lambda
 
   SNSSESLambdaPermission:
     Type: AWS::Lambda::Permission
@@ -66,7 +70,7 @@ Resources:
             Action: 
             - ses:SendEmail
             Resource: 
-              - !Ref SESArn
+              - "*"
       ManagedPolicyArns: 
         - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
 
@@ -75,7 +79,6 @@ Resources:
     Properties:
       Environment:
         Variables:
-          SES_ENDPOINT: !Ref SESArn
           SES_SOURCE_EMAIL: !Ref SESSourceEmail
       FunctionName: send-email
       Handler: index.handler
@@ -88,27 +91,37 @@ Resources:
           import boto3
           import json
           import os
+          import ast
 
           def handler(event,context):
-            try:
-              ses = boto3.client('ses')
-              ses_endpoint = os.environ.get('SES_ENDPOINT')
-              ses_source_email = os.environ.get('SES_SOURCE_EMAIL')
-              jsonEvent = json.dumps(event)
-              ses.publish(
-                Source=ses_source_email, 
-                Destination=jsonEvent["email"], 
-                Message={
-                  'Subject': {
-                    'Data': jsonEvent["subject"],
-                  },
-                  'Body': {
-                    'Text': {
-                      'Data': jsonEvent["data"]
+            ses = boto3.client('ses')
+            ses_source_email = os.environ.get('SES_SOURCE_EMAIL')
+            data = event['Records']
+
+            try: 
+              if(len(data) > 0):
+                record = data[0]
+                subject = record['Sns']['Subject']
+                msg = record['Sns']['Message']
+                att = record['Sns']['MessageAttributes']['Email']
+                dest = ast.literal_eval(att['Value'])
+                
+                ses.send_email(
+                  Source=ses_source_email, 
+                  Destination={
+                    'ToAddresses': dest
+                  }, 
+                  Message={
+                    'Subject': {
+                      'Data': subject,
+                    },
+                    'Body': {
+                      'Text': {
+                        'Data': msg
+                      }
                     }
-                  }
-              })
+                })
             except Exception as e:
               print(e)
               return 'Error occured!'  
-      
+

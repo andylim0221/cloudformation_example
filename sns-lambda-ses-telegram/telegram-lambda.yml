@@ -1,19 +1,15 @@
 AWSTemplateFormatVersion: 2010-09-09
 Description: Lambda functions to send telegram.
 Parameters:
-  TelegramAPIKey:
+  TelegramToken:
     Description: Telegram API key
     Type: String
-  TelegramChatId:
-    Description: Telegram Chat ID
-    Type: String
-    
 Resources:
   # SNS Topic to send telegram
   TelegramSNSTopic:
     Type: AWS::SNS::Topic
     Properties:
-      DisplayName: 
+      DisplayName: telegram
       TopicName: Telegram-Topic
   
   TelegramSNSTopicPolicy:
@@ -33,7 +29,14 @@ Resources:
             Action: 
               - sns:Publish 
             Resource: 
-              - !GetAtt LambdaFunction.Arn          
+              - !GetAtt LambdaFunction.Arn       
+
+  LambdaSubscription:
+    Type: AWS::SNS::Subscription
+    Properties:
+      TopicArn: !Ref TelegramSNSTopic
+      Endpoint: !GetAtt LambdaFunction.Arn
+      Protocol: lambda   
 
   SNSLambdaPermission:
     Type: AWS::Lambda::Permission
@@ -63,30 +66,31 @@ Resources:
     Properties:
       Environment:
         Variables:
-          TELEGRAM_TOKEN: !Ref TelegramAPIKey
-          TELEGRAM_CHAT_ID: !Ref TelegramChatId
+          TELEGRAM_TOKEN: !Ref TelegramToken
       FunctionName: send-telegram
       Handler: index.handler
       MemorySize: 128
       Role: !GetAtt LambdaExecutionRole.Arn
-      Runtime: python3.9
+      Runtime: python3.11
       Timeout: 500
       Code:
         ZipFile: | 
           import json
           import os
           import requests
-          
-          def handler(event,context):
-            try:
-              bot_request = 'https://api.telegram.org/' + TELEGRAM_TOKEN + '/sendMessage?chat_id=' + TELEGRAM_CHAT_ID + '&text=' + event['Records'][0]['Sns']['Message'] 
-              response = requests.get(bot_request) 
+
+          def lambda_handler(event, context):
+              # TODO implement
+              BOT_TOKEN = os.environ.get('TELEGRAM_TOKEN')
+              data = event['Records']
+              record = data[0]
+              msg = record['Sns']['Message']
+              chat_id = record['Sns']['MessageAttributes']['TelegramId']['Value']
+              
+              send_text = f'https://api.telegram.org/bot{BOT_TOKEN}/sendMessage?chat_id={chat_id}&parse_mode=HTML&text={msg}'
+              response = requests.get(send_text)
+              print(response)    
               return {
-                'statusCode': response.status_code,
-                'msg': json.dumps('Message sent with success!'),
-                'body': json.dumps(response.json())
+                  'statusCode': 200,
+                  'body': json.dumps('Hello from Lambda!')
               }
-            except Exception as e:
-              print(e)
-              return 'Error occured!'  
-      
